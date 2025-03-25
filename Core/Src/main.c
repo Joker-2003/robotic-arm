@@ -9,6 +9,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include <stdbool.h>
+#include <stdlib.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -47,9 +48,12 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 /* Buffer for UART interrupt */
 #define RX_BUFFER_SIZE 100
 char rx_buffer[RX_BUFFER_SIZE];  // Buffer to store received data
-uint8_t rx_index = 0;            // Buffer index             // Byte received from UART
-volatile bool servo_active = false; // Flag to control servo movement
-volatile char received_byte = 0;    // Variable to store received character
+uint8_t rx_index = 0;
+volatile char received_buffer[32] = {0};  // Buffer for UART data (4 chars + null)// Buffer index             // Byte received from UART
+volatile bool servo_active = true; // Flag to control servo movement
+volatile char* received_byte = 0;    // Variable to store received character
+volatile int motor_angle = 0;
+volatile int motor = 0;
 
 /* USER CODE END PV */
 
@@ -165,20 +169,20 @@ int main(void)
     /* Send initial AT command to HC-05 */
     char message[100];
     char at_command[] = "AT\r\n";
-    HAL_UART_Transmit(&huart2, (uint8_t*)at_command, strlen(at_command), 100);
+    //HAL_UART_Transmit(&huart2, (uint8_t*)at_command, strlen(at_command), 100);
     HAL_Delay(1000);  // Wait for response
 
 
 
 
-    sprintf(message, "Waiting for data from HC-05...\r\n");
-    print_msg(message);
+    //sprintf(message, "Waiting for data from HC-05...\r\n");
+    //print_msg(message);
 
     /* Start PWM for servo */
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
     /* Enable UART receive interrupt */
-    HAL_UART_Receive_IT(&huart2, (uint8_t*)&received_byte, 1);
+    HAL_UART_Receive_IT(&huart2, (uint8_t*)received_buffer, 4);
     /*Init Serv driver at 50Mhz*/
     PCA9685_Init(50);
 
@@ -202,14 +206,8 @@ int main(void)
     	        {
 
     	            /* Servo sweep */
-    	            PCA9685_SetServoAngle(0, 0);
-    	            PCA9685_SetServoAngle(4, 36);
-    	            PCA9685_SetServoAngle(8, 72);
-    	            HAL_Delay(1000);
+    	            PCA9685_SetServoAngle(motor, motor_angle);
 
-    	            PCA9685_SetServoAngle(0, 36);
-    	            PCA9685_SetServoAngle(4, 72);
-    	            PCA9685_SetServoAngle(8, 108);
     	            HAL_Delay(1000);
     	        }
 
@@ -220,54 +218,59 @@ int main(void)
     }
 }
 
-/* Interrupt callback for UART reception */
-void HAL_UART_RxCpltCallback__ll(UART_HandleTypeDef *huart)
-{
-    if (huart == &huart2)  // Check if interrupt is from UART2 (HC-05)
-    {
-        /* Store received byte in buffer */
-        if (rx_index < RX_BUFFER_SIZE - 1)
-        {
-            rx_buffer[rx_index++] = received_byte;
-            rx_buffer[rx_index] = '\0';  // Null-terminate string
+
+
+volatile int last_three_values[3] = {0}; // Array to store last 3 values
+volatile uint8_t current_index = 0;      // Index for rolling buffer
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart == &huart2) {
+        //received_buffer[4] = '\0'; // Null-terminate string
+
+        // Debug print
+        print_msg("Received: ");
+        print_msg(received_buffer);
+        print_msg("\r\n");
+
+        // Convert received string to integer
+        int value = atoi(received_buffer);
+
+        // Print received value
+        char angle_msg[32];
+
+
+        motor = value / 1000;   // Get the first digit
+        motor_angle = value % 1000; // Get last three digits
+        sprintf(angle_msg, "Angle: %d %d\r\n", motor, motor_angle);
+        print_msg(angle_msg);
+
+
+        // Clear any possible UART errors
+//        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_ORE)) __HAL_UART_CLEAR_FLAG(&huart2, UART_FLAG_ORE);
+        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_FE)) __HAL_UART_CLEAR_FLAG(&huart2, UART_FLAG_FE);
+        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_NE)) __HAL_UART_CLEAR_FLAG(&huart2, UART_FLAG_NE);
+        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_PE)) __HAL_UART_CLEAR_FLAG(&huart2, UART_FLAG_PE);
+
+        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_ORE)) {
+            __HAL_UART_CLEAR_OREFLAG(&huart2);
+            print_msg("Overrun Error Cleared\r\n");
         }
 
-        /* If the received byte is a newline character, print the full buffer */
-        if (received_byte == '\n' || received_byte == '\r')
-        {
-            print_msg(rx_buffer);
-            print_msg("\r\n");
 
-            // Reset buffer for the next message
-            rx_index = 0;
-            memset(rx_buffer, 0, RX_BUFFER_SIZE);
+        // Blink LED to check if callback is still running
+        HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+        // Clear buffer
+        memset(received_buffer, 0, sizeof(received_buffer));
+
+        // Restart UART reception
+        HAL_StatusTypeDef status = HAL_UART_Receive_IT(&huart2, (uint8_t*)received_buffer, 4);
+        if (status != HAL_OK) {
+            print_msg("UART RX restart failed!\r\n");
         }
-
-        /* Restart UART reception */
-        HAL_UART_Receive_IT(&huart2, (uint8_t*)&received_byte, 1);
     }
 }
 
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    if (huart == &huart2)  // Check if the interrupt is from UART2 (HC-05)
-    {
-        if (received_byte == '1')
-        {
-            servo_active = true;  // Start servo rotation
-            print_msg("Servo rotation ON\r\n");
-        }
-        else if (received_byte == '0')
-        {
-            servo_active = false; // Stop servo rotation
-            print_msg("Servo rotation OFF\r\n");
-        }
-
-        /* Restart UART reception */
-        HAL_UART_Receive_IT(&huart2, (uint8_t*)&received_byte, 1);
-    }
-}
 /**
   * @brief System Clock Configuration
   * @retval None
