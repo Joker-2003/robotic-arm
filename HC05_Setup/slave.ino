@@ -1,20 +1,64 @@
-//slave:
+#include <SoftwareSerial.h>
 
-String receivedString = "";  
+const int flex1 = A0;
+const int flex2 = A1;
+const int button1 = 2;
+
+int selectedMotor = 7;
+
+SoftwareSerial BTSerial(0, 1);  // RX, TX
 
 void setup() {
-  Serial.begin(38400); 
+    Serial.begin(9600);   // Serial Monitor
+    BTSerial.begin(9600); // Bluetooth Module
+    pinMode(flex1, INPUT);
+    pinMode(flex2, INPUT);
+    pinMode(button1, INPUT);
+    // Serial.println("Bluetooth HC-05 Ready!");
 }
 
 void loop() {
-  while (Serial.available()) {
-    char c = Serial.read();
-    receivedString += c;
-    delay(5); 
-  }
+    // if (digitalRead(button1) == HIGH) {
+    //     selectedMotor = 1;
+        // Serial.println("Motor 1 selected");
+    // } else if (digitalRead(button2) == HIGH) {
+    //     selectedMotor = 2;
+    //     Serial.println("Motor 2 selected");
+    // } else if (digitalRead(button3) == HIGH) {
+    //     selectedMotor = 3;
+    //     Serial.println("Motor 3 selected");
+    // }
+    
+    if (digitalRead(button1) == HIGH) {
+        int flexValue1 = analogRead(flex1);
+        int flexValue2 = analogRead(flex2);
+        int totalFlexValue = flexValue1 + flexValue2;
 
-  if (receivedString.length() > 0) {
-      Serial.println(receivedString);
-    receivedString = ""; 
-  }
+        // Serial.print("Total Flex Value: ");
+        // Serial.println(totalFlexValue);
+        
+        // map(value, fromLow, fromHigh, toLow, toHigh);
+        // need to tweak thresholds
+        int angle = map(totalFlexValue, 700, 1800, 0, 180); //assuming min of 700 and max 900 analog value for sum of two flex sensors
+        angle = constrain(angle, 0, 180);
+        
+        int dataToSend = (selectedMotor * 1000) + angle; // want 4 digits
+       
+       
+        String command = String(dataToSend);
+        BTSerial.println(command);
+        // Serial.print("Sent: ");
+        // Serial.println(command);
+        
+      while (BTSerial.available()) {
+        String response = BTSerial.readString();
+      }
+    }
+
+      if (Serial.available()) {
+          String command = Serial.readStringUntil('\n');
+          BTSerial.println(command);  // Send command to HC-05
+      }
+    
+    delay(1000);
 }
