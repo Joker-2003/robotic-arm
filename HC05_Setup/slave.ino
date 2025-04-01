@@ -1,12 +1,26 @@
 #include <SoftwareSerial.h>
+#include <Wire.h>
 
-const int flex1 = A0;
-const int flex2 = A1;
+const int flex1 = A0; // thumb sensor
+const int flex2 = A1; // index sensor
 const int button1 = 2;
 
 int selectedMotor = 7;
 
 SoftwareSerial BTSerial(0, 1);  // RX, TX
+
+//MPU6050 variables declaration
+#include <Wire.h>
+
+const int MPU = 0x68; // MPU6050 I2C address
+float AccX, AccY, AccZ;
+float GyroX, GyroY, GyroZ;
+float accAngleX, accAngleY, gyroAngleX, gyroAngleY, gyroAngleZ;
+float roll, pitch, yaw;
+float AccErrorX, AccErrorY, GyroErrorX, GyroErrorY, GyroErrorZ;
+float elapsedTime, currentTime, previousTime;
+int c = 0;
+//end of MPU6050 declaration
 
 void setup() {
     Serial.begin(9600);   // Serial Monitor
