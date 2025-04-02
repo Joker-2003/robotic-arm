@@ -40,26 +40,39 @@ void setup() {
 void loop() {
         int flexValue1 = analogRead(flex1);
         int flexValue2 = analogRead(flex2);
-        
-        // map(value, fromLow, fromHigh, toLow, toHigh);
-        // need to tweak thresholds
 
         //thumb
         int angle1 = map(flexValue1, 573, 1023, 20, 180); //assuming min of 700 and max 900 analog value for sum of two flex sensors
+        angle1 = constrain(angle1, 10, 170);
 
         //index
         int angle2 = map(flexValue2, 470, 1023, 0, 180); //assuming min of 700 and max 900 analog value for sum of two flex sensors
+        angle2 = constrain(angle2, 10, 170);
 
         int thumbData = 7000 + angle1; // want 4 digits
-        int indexData = 4000 + angle2; // want 4 digits
        
         BTSerial.println(String(thumbData));  // Send command to HC-05;
+
+        while (BTSerial.available()) {
+          String response = BTSerial.readString();
+        }
+        delay(1500);
+        
+        int indexData = 2000 + angle2; // want 4 digits
+
         BTSerial.println(String(indexData));  // Send command to HC-05
 
-      while (BTSerial.available()) {
-        String response = BTSerial.readString();
-      }
-      delay(500);   
+        while (BTSerial.available()) {
+          String response = BTSerial.readString();
+        }
+        delay(1500);  
+
+        BTSerial.println(getMPU6050Bit());  // Send command to HC-05
+ 
+        while (BTSerial.available()) {
+          String response = BTSerial.readString();
+        }
+        delay(1500);  
 }
 
 // Function to get the string of Bits for Motor 3 based on MPU6050 sensor data
