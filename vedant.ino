@@ -56,7 +56,7 @@ void loop() {
         while (BTSerial.available()) {
           String response = BTSerial.readString();
         }
-        delay(1500);
+        delay(300);
         
         int indexData = 2000 + angle2; // want 4 digits
 
@@ -65,14 +65,14 @@ void loop() {
         while (BTSerial.available()) {
           String response = BTSerial.readString();
         }
-        delay(1500);  
+        delay(300);  
 
         BTSerial.println(getMPU6050Bit());  // Send command to HC-05
  
         while (BTSerial.available()) {
           String response = BTSerial.readString();
         }
-        delay(1500);  
+        delay(300);  
 }
 
 // Function to get the string of Bits for Motor 3 based on MPU6050 sensor data
@@ -112,7 +112,12 @@ String getMPU6050Bit (){
   roll = 0.96 * gyroAngleX + 0.04 * accAngleX;
   pitch = 0.96 * gyroAngleY + 0.04 * accAngleY;
 
-int yaw_manipulated = 3000 + constrain(map(yaw, -250, 250, 0 , 180), 0, 180);
+  if (yaw < 0 || yaw > 180)
+    yaw= 90;
+
+int yaw_manipulated = 3000 + yaw;
     delay(150);
+   
     return String(yaw_manipulated);
+    //return String(yaw);
   }
